@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "ms-ceintl.vscode-language-pack-ja",
+    "ms-python.black-formatter",
+    "ms-python.isort",
+    "ms-python.flake8",
+    "ms-python.python",
+    "matangover.mypy",
+    "njpwerner.autodocstring"
+  ]
+}
