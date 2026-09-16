@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from accelerate import Accelerator
 from datasets import load_from_disk
-from torch.utils.data import DataLoader, RandomSampler, Subset
+from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, get_linear_schedule_with_warmup
 
@@ -145,7 +145,7 @@ class ModelTrain:
         student_attention_mask = student_batch["attention_mask"]
         student_lm_labels = student_batch["labels"]
         is_top_student = self.top_training_session["model"] == student_model
-        student_outputs = student_model(input_ids=student_input_ids, attention_mask=None)
+        student_outputs = student_model(input_ids=student_input_ids, attention_mask=student_attention_mask)
 
         # 教師モデルが存在する場合、または生徒モデルが最も精度の高いモデルでない場合に蒸留損失を計算
         # 生徒モデルが最も精度の高いモデル場合、自身が教師モデルとなるため。
@@ -194,7 +194,7 @@ class ModelTrain:
         """
 
         with torch.no_grad():
-            teacher_outputs = teacher_model(input_ids=teacher_input_ids, attention_mask=None)
+            teacher_outputs = teacher_model(input_ids=teacher_input_ids, attention_mask=student_attention_mask)
 
         t_logits = teacher_outputs["logits"]
         s_logits = student_outputs["logits"]
@@ -255,8 +255,9 @@ class ModelTrain:
         student_subset = Subset(self.student_tokenized_dataset, indices)
 
         # データローダーの作成
-        teacher_dataloader = DataLoader(teacher_subset, batch_size=config.train_batch_size, collate_fn=self.teacher_data_collator, sampler=RandomSampler(teacher_subset))
-        student_dataloader = DataLoader(student_subset, batch_size=config.train_batch_size, collate_fn=self.student_data_collator, sampler=RandomSampler(student_subset))
+        # indices で共通の順番に並べ替え済みなので、ここでは並べ替えない（教師と生徒に同じ文を渡すため）
+        teacher_dataloader = DataLoader(teacher_subset, batch_size=config.train_batch_size, collate_fn=self.teacher_data_collator, shuffle=False)
+        student_dataloader = DataLoader(student_subset, batch_size=config.train_batch_size, collate_fn=self.student_data_collator, shuffle=False)
 
         teacher_dataloader = self.accelerator.prepare_data_loader(teacher_dataloader)
         student_dataloader = self.accelerator.prepare_data_loader(student_dataloader)
